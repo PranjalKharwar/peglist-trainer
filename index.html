@@ -506,14 +506,8 @@
             errorEl.style.display = 'none';
             modalBackdrop.classList.add('show');
 
-            const actions = [
-                "juggling colorful balls", "wearing a tiny superhero cape", "slipping on a banana peel",
-                "riding a unicycle", "painting a masterpiece", "balancing on a tightrope",
-                "wearing silly sunglasses", "eating a giant sandwich", "playing an electric guitar",
-                "doing a funny dance", "peeking from behind a curtain", "driving a tiny race car"
-            ];
-            const randomAction = actions[Math.floor(Math.random() * actions.length)];
-            const userPrompt = `A simple, clear, memorable icon of '${pegItem.word}' ${randomAction}, cartoon style, on a plain white background.`;
+            // NEW: Simplified and direct prompt for clearer images
+            const userPrompt = `A simple, clear, cartoon-style icon of '${pegItem.word}', on a plain white background. Clean vector art.`;
             
             try {
                 const payload = { instances: [{ prompt: userPrompt }], parameters: { "sampleCount": 1 } };
@@ -561,7 +555,6 @@
             };
             const dataString = JSON.stringify(dataToExport);
             
-            // Use a temporary textarea to copy to clipboard
             const textArea = document.createElement("textarea");
             textArea.value = dataString;
             document.body.appendChild(textArea);
