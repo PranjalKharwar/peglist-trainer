@@ -111,6 +111,28 @@
                 <button onclick="showScreen('quiz-setup-screen')" class="btn w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105">Start Training</button>
                 <button onclick="showScreen('settings-screen')" class="btn w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105">Edit My Peg List</button>
                 <button onclick="showScreen('palace-list-screen')" class="btn w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105">My Memory Palaces</button>
+                <button onclick="showScreen('sync-screen')" class="btn w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105">Sync Data</button>
+            </div>
+        </div>
+        
+        <!-- Sync Screen -->
+        <div id="sync-screen" class="screen p-6 bg-gray-800 rounded-2xl shadow-lg">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-blue-400">Sync Data</h2>
+                <button onclick="showScreen('welcome-screen')" class="btn bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Back</button>
+            </div>
+            <div class="space-y-6">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-300 mb-2">Export Data</h3>
+                    <p class="text-sm text-gray-400 mb-4">Click to copy all your data (pegs, images, palaces) to your clipboard. Paste this on your other device.</p>
+                    <button onclick="exportData()" class="btn w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Export to Clipboard</button>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-300 mb-2">Import Data</h3>
+                    <p class="text-sm text-gray-400 mb-4">Paste your exported data below and click import. <strong class="text-red-400">Warning: This will overwrite all current data on this device.</strong></p>
+                    <textarea id="import-data-area" class="form-input w-full bg-gray-700 border-gray-600 rounded-lg p-2 h-24" placeholder="Paste your data here..."></textarea>
+                    <button onclick="importData()" class="btn w-full mt-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg">Import Data</button>
+                </div>
             </div>
         </div>
 
@@ -265,10 +287,12 @@
 
         // --- CORE FUNCTIONS ---
 
-        function showNotification(message) {
+        function showNotification(message, isSuccess = false) {
             const notification = document.getElementById('notification');
             const messageEl = document.getElementById('notification-message');
             messageEl.textContent = message;
+            notification.classList.toggle('bg-red-500', !isSuccess);
+            notification.classList.toggle('bg-green-500', isSuccess);
             notification.classList.add('show');
             if (notificationTimeout) clearTimeout(notificationTimeout);
             notificationTimeout = setTimeout(() => notification.classList.remove('show'), 3000);
@@ -310,15 +334,19 @@
             container.innerHTML = '';
             pegList.forEach(item => {
                 const div = document.createElement('div');
-                div.className = 'flex items-center space-x-2';
+                div.className = 'bg-gray-700 p-2 rounded-lg';
                 div.innerHTML = `
-                    <label class="w-12 text-right font-mono text-gray-400">${String(item.number).padStart(2, '0')}</label>
-                    <div class="w-16 h-12 bg-gray-700 rounded-md flex items-center justify-center">
-                        <img src="${item.imageUrl || ''}" class="${item.imageUrl ? '' : 'hidden'} w-full h-full object-cover rounded-md cursor-pointer" onclick="showImageInModal('${item.word}', '${item.imageUrl}')">
+                    <div class="flex items-center justify-between">
+                        <label class="font-mono text-gray-400 text-lg">#${String(item.number).padStart(2, '0')}</label>
+                        <button onclick="generateImageForPeg(${item.number})" class="btn bg-blue-600 hover:bg-blue-700 p-2 rounded-lg text-sm" title="Generate Image">✨ Gen</button>
                     </div>
-                    <input type="text" value="${item.word}" onchange="savePegWord(${item.number}, this.value)" 
-                           class="form-input flex-grow bg-gray-700 border-gray-600 rounded-lg p-2">
-                    <button onclick="generateImageForPeg(${item.number})" class="btn bg-blue-600 hover:bg-blue-700 p-2 rounded-lg" title="Generate Image">✨</button>
+                    <div class="flex items-center space-x-2 mt-2">
+                        <div class="w-16 h-12 bg-gray-800 rounded-md flex-shrink-0 flex items-center justify-center">
+                            <img src="${item.imageUrl || ''}" class="${item.imageUrl ? '' : 'hidden'} w-full h-full object-cover rounded-md cursor-pointer" onclick="showImageInModal('${item.word}', '${item.imageUrl}')">
+                        </div>
+                        <input type="text" value="${item.word}" onchange="savePegWord(${item.number}, this.value)" 
+                               class="form-input w-full bg-gray-800 border-gray-700 rounded-lg p-2">
+                    </div>
                 `;
                 container.appendChild(div);
             });
@@ -407,7 +435,7 @@
             const palace = memoryPalaces.find(p => p.id === currentEditingPalaceId);
             if (palace) {
                 palace.loci[index] = value.trim();
-                savePalaces(false); // Don't re-render the whole list
+                savePalaces(false);
             }
         }
 
@@ -489,8 +517,6 @@
             
             try {
                 const payload = { instances: [{ prompt: userPrompt }], parameters: { "sampleCount": 1 } };
-                // --- IMPORTANT ---
-                // Replace the placeholder text with your actual API key
                 const apiKey = "AIzaSyCwHiMKso7du_W5KFb_BuTW0nPQej3PVFU";
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
                 
@@ -505,233 +531,4 @@
                 
                 if (result.predictions && result.predictions[0] && result.predictions[0].bytesBase64Encoded) {
                     const imageUrl = `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
-                    imgEl.src = imageUrl;
-                    imgEl.style.display = 'block';
-                    
-                    pegItem.imageUrl = imageUrl;
-                    localStorage.setItem('pegList', JSON.stringify(pegList));
-                    renderPegListSettings();
-                } else {
-                    throw new Error('Invalid response structure from API.');
-                }
-            } catch (err) {
-                console.error('Image generation failed:', err);
-                errorEl.style.display = 'block';
-            } finally {
-                loader.style.display = 'none';
-                modalTitle.textContent = `Image for "${pegItem.word}"`;
-            }
-        }
-
-        function closeImageModal() {
-            document.getElementById('image-modal-backdrop').classList.remove('show');
-        }
-
-
-        // --- QUIZ LOGIC ---
-
-        function startQuiz() {
-            const quizMode = document.getElementById('quiz-mode').value;
-            quizSettings = { quizMode };
-            
-            if (quizMode === 'palace-walk') {
-                const palaceId = document.getElementById('palace-selector').value;
-                const palace = memoryPalaces.find(p => p.id === palaceId);
-                if (!palace) {
-                    showNotification("Please select a valid palace.");
-                    return;
-                }
-                quizSettings.palace = palace;
-                // Filter for loci that have been defined
-                quizQuestions = palace.loci
-                    .map((locus, index) => ({ locus, index }))
-                    .filter(item => item.locus.trim() !== '');
-
-                if (quizQuestions.length === 0) {
-                    showNotification("This palace has no defined locations. Please edit it first.");
-                    return;
-                }
-
-            } else {
-                const rangeStart = parseInt(document.getElementById('range-start').value);
-                const rangeEnd = parseInt(document.getElementById('range-end').value);
-                if (rangeStart > rangeEnd) {
-                    showNotification("Start range cannot be greater than end range.");
-                    return;
-                }
-                quizSettings.rangeStart = rangeStart;
-                quizSettings.rangeEnd = rangeEnd;
-                
-                quizQuestions = pegList.filter(p => p.number >= rangeStart && p.number <= rangeEnd && p.word.trim() !== '');
-
-                if (quizQuestions.length < 4 && quizMode === 'multiple-choice') {
-                     showNotification("Need at least 4 defined pegs in this range for multiple choice.");
-                     return;
-                }
-                if (quizQuestions.length === 0) {
-                    showNotification("No peg words defined in this range.");
-                    return;
-                }
-            }
-
-            quizQuestions.sort(() => Math.random() - 0.5);
-            currentQuestionIndex = 0;
-            userAnswers = [];
-            
-            showScreen('quiz-screen');
-            displayQuestion();
-        }
-
-        function displayQuestion() {
-            if (currentQuestionIndex >= quizQuestions.length) {
-                showResults();
-                return;
-            }
-            
-            const typingArea = document.getElementById('typing-answer-area');
-            const mcArea = document.getElementById('mc-answer-area');
-            mcArea.style.display = 'none';
-            typingArea.style.display = 'none';
-
-            if (quizSettings.quizMode === 'multiple-choice') {
-                mcArea.style.display = 'grid';
-                displayMultipleChoiceQuestion();
-            } else {
-                typingArea.style.display = 'block';
-                displayTextQuestion();
-            }
-        }
-
-        function displayTextQuestion() {
-            const questionItem = quizQuestions[currentQuestionIndex];
-            const progressIndicator = document.getElementById('progress-indicator');
-            const questionPrompt = document.getElementById('question-prompt');
-            const questionDisplay = document.getElementById('question-display');
-            const answerInput = document.getElementById('answer-input');
-            const quizImage = document.getElementById('quiz-image');
-
-            progressIndicator.textContent = `Question ${currentQuestionIndex + 1} of ${quizQuestions.length}`;
-            
-            let peg;
-            if (quizSettings.quizMode === 'palace-walk') {
-                questionPrompt.textContent = `Locus #${questionItem.index}: What's here?`;
-                questionDisplay.textContent = questionItem.locus;
-                answerInput.type = 'text';
-                peg = pegList.find(p => p.number === questionItem.index);
-            } else if (quizSettings.quizMode === 'num-to-word') {
-                questionPrompt.textContent = 'What is the peg for...';
-                questionDisplay.textContent = questionItem.number;
-                answerInput.type = 'text';
-                peg = questionItem;
-            } else { // word-to-num
-                questionPrompt.textContent = 'What is the number for...';
-                questionDisplay.textContent = questionItem.word;
-                answerInput.type = 'number';
-                peg = questionItem;
-            }
-
-            if (peg && peg.imageUrl) {
-                quizImage.src = peg.imageUrl;
-                quizImage.classList.remove('hidden');
-            } else {
-                quizImage.classList.add('hidden');
-            }
-
-            answerInput.value = '';
-            answerInput.focus();
-            document.getElementById('feedback-indicator').textContent = '';
-        }
-
-        function displayMultipleChoiceQuestion() {
-            // Similar logic as before, adapted for the new structure
-        }
-
-        function normalizeString(str) {
-            if (typeof str !== 'string') return '';
-            return str.toLowerCase().replace(/\s+/g, '');
-        }
-
-        function checkAnswer() {
-            const userAnswer = document.getElementById('answer-input').value;
-            const currentQuestionItem = quizQuestions[currentQuestionIndex];
-            
-            let isCorrect = false;
-            let correctAnswer;
-
-            if (quizSettings.quizMode === 'palace-walk') {
-                correctAnswer = pegList.find(p => p.number === currentQuestionItem.index).word;
-                isCorrect = normalizeString(userAnswer) === normalizeString(correctAnswer);
-            } else if (quizSettings.quizMode === 'num-to-word') {
-                correctAnswer = currentQuestionItem.word;
-                isCorrect = normalizeString(userAnswer) === normalizeString(correctAnswer);
-            } else { // word-to-num
-                correctAnswer = String(currentQuestionItem.number);
-                isCorrect = userAnswer.trim() === correctAnswer;
-            }
-
-            userAnswers.push({ question: currentQuestionItem, answer: userAnswer, isCorrect, correctAnswer });
-            document.getElementById('feedback-indicator').textContent = isCorrect ? '✅' : '❌';
-            
-            setTimeout(() => {
-                currentQuestionIndex++;
-                displayQuestion();
-            }, 700);
-        }
-
-        function checkMultipleChoiceAnswer(selectedWord, buttonElement) {
-            // Similar logic as before, adapted for the new structure
-        }
-
-        function showResults() {
-            const correctAnswers = userAnswers.filter(a => a.isCorrect).length;
-            const totalQuestions = userAnswers.length;
-            const score = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
-
-            document.getElementById('score-display').textContent = `${score}%`;
-
-            const incorrectList = document.getElementById('incorrect-answers-list');
-            incorrectList.innerHTML = '';
-            const incorrectAnswers = userAnswers.filter(a => !a.isCorrect);
-
-            if (incorrectAnswers.length > 0) {
-                document.getElementById('review-section').style.display = 'block';
-                incorrectAnswers.forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = 'bg-gray-700 p-2 rounded-lg flex justify-between items-center';
-                    
-                    let questionText;
-                    if (quizSettings.quizMode === 'palace-walk') {
-                        questionText = `#${item.question.index}: ${item.question.locus}`;
-                    } else {
-                        questionText = item.question.number;
-                    }
-
-                    div.innerHTML = `
-                        <div>
-                            <span class="font-mono text-gray-400">${questionText}</span> &rarr; 
-                            <span class="text-red-400 line-through">${item.answer || '""'}</span>
-                        </div>
-                        <span class="font-bold text-green-400">${item.correctAnswer}</span>
-                    `;
-                    incorrectList.appendChild(div);
-                });
-            } else {
-                 document.getElementById('review-section').style.display = 'none';
-            }
-
-            showScreen('results-screen');
-        }
-
-        // --- EVENT LISTENERS ---
-        document.getElementById('answer-input').addEventListener('keydown', (event) => {
-            if (event.key === 'Enter') checkAnswer();
-        });
-
-        // --- INITIALIZATION ---
-        window.onload = () => {
-            initializePegList();
-            initializePalaces();
-        };
-    </script>
-</body>
-</html>
+                    imgEl.src = imageU
