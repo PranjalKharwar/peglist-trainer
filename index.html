@@ -489,6 +489,8 @@
             
             try {
                 const payload = { instances: [{ prompt: userPrompt }], parameters: { "sampleCount": 1 } };
+                // --- IMPORTANT ---
+                // Replace the placeholder text with your actual API key
                 const apiKey = "AIzaSyCwHiMKso7du_W5KFb_BuTW0nPQej3PVFU";
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
                 
